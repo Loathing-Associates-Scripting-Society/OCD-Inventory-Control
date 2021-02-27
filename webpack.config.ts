@@ -62,6 +62,16 @@ const config: Configuration[] = [
   {
     ...commonConfig,
     entry: {
+      'ocd-cleanup': './src/scripts/ocd-cleanup.ts',
+    },
+    output: {
+      ...commonConfig.output,
+      path: resolve(__dirname, 'release/scripts'),
+    },
+  },
+  {
+    ...commonConfig,
+    entry: {
       'ocd-test-basic': './test/e2e/ocd-test-basic.ts',
     },
     output: {

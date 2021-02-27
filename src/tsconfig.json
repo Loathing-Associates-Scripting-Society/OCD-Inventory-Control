@@ -1,0 +1,4 @@
+// tsconfig for source files
+{
+  "extends": "../tsconfig.kolmafia.json"
+}
