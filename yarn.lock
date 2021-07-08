@@ -2153,7 +2153,7 @@ klaw-sync@^6.0.0:
   dependencies:
     graceful-fs "^4.1.11"
 
-"kolmafia@npm:kolmafia-types@^0.1.1":
+"kolmafia@npm:kolmafia-types@^0.1.1", "kolmafia@npm:kolmafia-types@^0.1.2":
   version "0.1.2"
   resolved "https://registry.yarnpkg.com/kolmafia-types/-/kolmafia-types-0.1.2.tgz#12e890c5cd9c710d9f457bc9089cebd30b0ba7fe"
   integrity sha512-tj/5Ezj2owwYH/9mcx5M5RK7AD966t1A5o1ftBUOCaP6vD+aY18e6gavs+G8H9VBFVdsawCII8iPC9Til3CGHQ==
@@ -2978,7 +2978,7 @@ rollup-plugin-delete@^2.0.0:
   dependencies:
     del "^5.1.0"
 
-rollup@^2.38.5, rollup@^2.51.2:
+rollup@^2.38.5, rollup@^2.51.2, rollup@^2.52.8:
   version "2.52.8"
   resolved "https://registry.yarnpkg.com/rollup/-/rollup-2.52.8.tgz#b6462f9c16ffe8995b9a2b313f2e4247fa75e4d9"
   integrity sha512-IjAB0C6KK5/lvqzJWAzsvOik+jV5Bt907QdkQ/gDP4j+R9KYNI1tjqdxiPitGPVrWC21Mf/ucXgowUjN/VemaQ==
@@ -3376,7 +3376,7 @@ typedarray-to-buffer@^3.1.5:
   dependencies:
     is-typedarray "^1.0.0"
 
-typescript@^4.3.2:
+typescript@^4.3.2, typescript@^4.3.5:
   version "4.3.5"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.3.5.tgz#4d1c37cc16e893973c45a06886b7113234f119f4"
   integrity sha512-DqQgihaQ9cUrskJo9kIyW/+g0Vxsk8cDtZ52a3NGh0YNTfpUSArXSohyUGnvbPazEPLu398C0UxmKSOrPumUzA==

@@ -1,0 +1,40 @@
+// tsconfig for building the cleanup script
+{
+  "extends": "gts/tsconfig-google.json",
+  "compilerOptions": {
+    // Don't generate type definitions (Rhino doesn't need them anyway)
+    "declaration": false,
+    // JavaScript APIs supported by Rhino 1.7.13
+    // See https://mozilla.github.io/rhino/compat/engines.html for more info
+    "lib": [
+      "ES5",
+      "ES2015.Collection",
+      "ES2015.Core",
+      "ES2015.Generator",
+      "ES2015.Iterable",
+      "ES2015.Symbol",
+      "ES2015.Symbol.WellKnown",
+      "ES2016.Array.Include",
+      "ES2017.String",
+      "ES2019.String"
+    ],
+    // Emit ES modules and rely on the bundler to convert us to CommonJS
+    "module": "ES2015",
+    "moduleResolution": "node",
+    // Prevent generating bundles if `tsc` is run directly.
+    // This is ignored when building with Rollup
+    "noEmit": true,
+    "paths": {
+      "zlib.ash": ["../../../node_modules/kolmafia/contrib/zlib.ash"]
+    },
+    "rootDir": ".",
+    // Don't generate source maps (Rhino doesn't support them anyway)
+    "sourceMap": false,
+    // Rely on Bublé to transpile to Rhino-compatible ES5+
+    "target": "ES2018",
+    // Don't include any @types/* packages, which may otherwise pull in unwanted
+    // libs (e.g. "lib.es2017.object.d.ts")
+    "types": []
+  },
+  "references": [{"path": "../../common"}]
+}

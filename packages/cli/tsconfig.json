@@ -1,0 +1,8 @@
+// Solution tsconfig used to compile housekeeping scripts for Node.js
+// Currently, this is used only for the Rollup config
+{
+  "extends": "gts/tsconfig-google.json",
+  // Don't try to actually compile anything with this
+  // (may change if we add custom build/maintenance scripts)
+  "include": ["rollup.config.ts"]
+}
