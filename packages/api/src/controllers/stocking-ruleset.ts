@@ -3,9 +3,9 @@
  */
 
 import {StockingRule} from '@philter/common';
+import {createMapLoader, encodeItem} from '@philter/common/kol';
 import {bufferToFile, toInt, toItem} from 'kolmafia';
 import {getvar} from 'zlib.ash';
-import {createMapLoader, encodeItem} from '../util';
 import {CONFIG_NAMES, getFullStockFileName} from './philter-config';
 
 /**

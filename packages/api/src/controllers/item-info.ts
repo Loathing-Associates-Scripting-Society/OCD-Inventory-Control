@@ -3,19 +3,18 @@
  */
 
 import {ItemInfo} from '@philter/common';
+import {toItemMap} from '@philter/common/kol';
 import {
-  fileToArray,
-  toItem,
-  getRelated,
   autosellPrice,
+  craftType,
+  fileToArray,
+  getRelated,
+  historicalPrice,
   isDisplayable,
   isGiftable,
-  craftType,
   toInt,
-  historicalPrice,
+  toItem,
 } from 'kolmafia';
-
-import {toItemMap} from '../util';
 
 const BREAKABLE_ITEMS = Item.get([
   'BRICKO hat',

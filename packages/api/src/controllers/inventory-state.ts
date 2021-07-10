@@ -3,15 +3,15 @@
  */
 
 import {InventoryState} from '@philter/common';
+import {toItemMap} from '@philter/common/kol';
 import {
-  getCloset,
-  haveDisplay,
   displayAmount,
+  getCloset,
   getInventory,
   getStorage,
+  haveDisplay,
 } from 'kolmafia';
-
-import {itemMapToIdMapping, toItemMap} from '../util';
+import {itemMapToIdMapping} from '../util';
 
 /**
  * Returns an ES6 Map of all items in the current player's display case.

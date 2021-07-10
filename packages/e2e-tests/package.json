@@ -23,6 +23,7 @@
     }
   },
   "dependencies": {
+    "@philter/common": "*",
     "@types/minimist": "^1.2.1",
     "minimist": "^1.2.5",
     "string-argv": "^0.3.1"

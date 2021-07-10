@@ -25,6 +25,7 @@
     // This is ignored when building with Rollup
     "noEmit": true,
     "paths": {
+      "@philter/common/kol": ["../../common/src/kol"],
       "zlib.ash": ["../../../node_modules/kolmafia/contrib/zlib.ash"]
     },
     "rootDir": ".",

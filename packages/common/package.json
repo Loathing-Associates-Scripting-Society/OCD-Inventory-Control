@@ -3,13 +3,26 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "build/src/index.js",
+  "exports": {
+    ".": "./build/src/index.js",
+    "./kol": "./build/src/kol/index.js"
+  },
+  "typesVersions": {
+    "*": {
+      "*": [
+        "./build/src/*"
+      ]
+    }
+  },
   "scripts": {
     "build": "tsc",
     "clean": "gts clean",
     "fix": "eslint --fix .",
     "lint": "eslint .",
     "test": "yarn run build && yarn run lint"
+  },
+  "dependencies": {
+    "kolmafia": "npm:kolmafia-types@^0.1.2"
   },
   "devDependencies": {
     "gts": "^3.1.0",

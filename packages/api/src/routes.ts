@@ -3,22 +3,28 @@
  */
 
 import {
+  CleanupAction,
+  CleanupRule,
   CLEANUP_TABLES_CATEGORIZED_ROUTE,
   CLEANUP_TABLES_UNCATEGORIZED_ROUTE,
   CONFIG_ROUTE,
   INVENTORY_ROUTE,
-  CleanupAction,
-  CleanupRule,
   RULESET_ROUTE,
   STATISTICS_ROUTE,
   StockingRule,
 } from '@philter/common';
+import {saveCleanupRulesetFile} from '@philter/common/kol';
 import {isOCDable} from 'ocd-cleanup.ash';
 import {getvar} from 'zlib.ash';
+import {
+  loadCleanupRulesetForCurrentPlayer,
+  saveCleanupRulesetForCurrentPlayer,
+} from './controllers/cleanup-ruleset';
 import {
   getInventoryState,
   getInventoryStateWithMaps,
 } from './controllers/inventory-state';
+import {toItemInfo} from './controllers/item-info';
 import {
   CONFIG_NAMES,
   getFullDataFileName,
@@ -26,12 +32,6 @@ import {
   loadCleanupConfig,
   saveCleanupConfig,
 } from './controllers/philter-config';
-import {toItemInfo} from './controllers/item-info';
-import {
-  loadCleanupRulesetForCurrentPlayer,
-  saveCleanupRulesetFile,
-  saveCleanupRulesetForCurrentPlayer,
-} from './controllers/cleanup-ruleset';
 import {
   loadStockingRulesetForCurrentPlayer,
   saveStockingRulesetFile,

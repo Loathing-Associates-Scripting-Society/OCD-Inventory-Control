@@ -18,6 +18,7 @@
     ],
     // Emit ES modules and rely on the bundler to convert us to CommonJS
     "module": "ES2015",
+    "moduleResolution": "node",
     // Necessary to produce consistent output on different platforms
     "newLine": "LF",
     "outDir": "build",
