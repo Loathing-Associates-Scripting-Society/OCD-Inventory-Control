@@ -3,12 +3,14 @@ import {Classes as Popover2Classes, Popover2} from '@blueprintjs/popover2';
 import {
   CleanupRule,
   CleanupRuleset,
+  InventoryState,
+  isInventoryLocation,
   ItemInfo,
   ReadonlyCleanupRuleset,
   ReadonlyInventoryState,
 } from '@philter/common';
 import classNames from 'classnames';
-import React, {memo, useCallback, useMemo} from 'react';
+import React, {memo, useCallback, useMemo, useState} from 'react';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import {areEqual, FixedSizeList} from 'react-window';
 import {CleanupRulePicker} from './CleanupRulePicker';
@@ -257,6 +259,8 @@ interface TableItemCleanupPropsBase {
   onSave?: () => void;
 }
 
+type Sort = keyof InventoryState | 'name' | 'price';
+
 interface TableItemCleanupProps
   extends TableItemCleanupPropsBase,
     Omit<React.ComponentProps<'div'>, keyof TableItemCleanupPropsBase> {}
@@ -297,14 +301,56 @@ export const TableItemCleanup = memo(function TableItemCleanup({
     [onChange]
   );
 
+  const [sort, setSort] = useState<Sort>('name');
+  const [sortAscending, setSortAscending] = useState(true);
+
+  const sortedItems = useMemo<readonly Readonly<ItemInfo>[]>(() => {
+    const itemsCopy = [...items];
+
+    if (isInventoryLocation(sort)) {
+      itemsCopy.sort((a, b) => inventory[sort][a.id] - inventory[sort][b.id]);
+    } else if (sort === 'name') {
+      itemsCopy.sort((a, b) =>
+        a.name < b.name ? -1 : a.name > b.name ? 1 : 0
+      );
+    } else if (sort === 'price') {
+      itemsCopy.sort((a, b) => (a.mallPrice || 0) - (b.mallPrice || 0));
+    }
+
+    if (!sortAscending) {
+      itemsCopy.reverse();
+    }
+
+    return itemsCopy;
+  }, [items, sort, sortAscending, inventory]);
+
+  const sortHeader = useCallback(
+    (key: Sort) => {
+      setSort(s => {
+        if (key === s) {
+          setSortAscending(value => !value);
+        }
+
+        return key;
+      });
+    },
+    [setSort, setSortAscending]
+  );
+
   const itemData = useMemo<TableItemCleanupRowData>(
     () => ({
       inventory,
-      items,
+      items: sortedItems,
       cleanupRules,
       onRuleChange: onRuleChange || defaultRuleChangeHandler,
     }),
-    [defaultRuleChangeHandler, inventory, items, cleanupRules, onRuleChange]
+    [
+      defaultRuleChangeHandler,
+      inventory,
+      sortedItems,
+      cleanupRules,
+      onRuleChange,
+    ]
   );
 
   const editorButtons = useMemo(
@@ -370,19 +416,34 @@ export const TableItemCleanup = memo(function TableItemCleanup({
           {({height: measuredHeight}) => (
             <div className="TableItemCleanup__Inner">
               <div className="TableItemCleanup__HeaderRow">
-                <div className="TableItemCleanup__HeaderCell TableItemCleanup__ColumnItemName">
+                <div
+                  className="TableItemCleanup__HeaderCell TableItemCleanup__ColumnItemName"
+                  onClick={() => sortHeader('name')}
+                >
                   Item (Amount)
                 </div>
-                <div className="TableItemCleanup__HeaderCell TableItemCleanup__ColumnClosetAmount">
+                <div
+                  className="TableItemCleanup__HeaderCell TableItemCleanup__ColumnClosetAmount"
+                  onClick={() => sortHeader('closet')}
+                >
                   <abbr title="Amount in Closet">C</abbr>
                 </div>
-                <div className="TableItemCleanup__HeaderCell TableItemCleanup__ColumnStorageAmount">
+                <div
+                  className="TableItemCleanup__HeaderCell TableItemCleanup__ColumnStorageAmount"
+                  onClick={() => sortHeader('storage')}
+                >
                   <abbr title="Amount in Storage">S</abbr>
                 </div>
-                <div className="TableItemCleanup__HeaderCell TableItemCleanup__ColumnDisplayCaseAmount">
+                <div
+                  className="TableItemCleanup__HeaderCell TableItemCleanup__ColumnDisplayCaseAmount"
+                  onClick={() => sortHeader('displayCase')}
+                >
                   <abbr title="Amount in Display Case">D</abbr>
                 </div>
-                <div className="TableItemCleanup__HeaderCell TableItemCleanup__ColumnMallPrice">
+                <div
+                  className="TableItemCleanup__HeaderCell TableItemCleanup__ColumnMallPrice"
+                  onClick={() => sortHeader('price')}
+                >
                   <abbr title="5th lowest mall price">Price</abbr>
                 </div>
                 <div className="TableItemCleanup__HeaderCell TableItemCleanup__ColumnKeepAmount">

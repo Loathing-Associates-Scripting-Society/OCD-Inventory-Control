@@ -14,3 +14,9 @@ export interface InventoryState {
 export type ReadonlyInventoryState = {
   readonly [P in keyof InventoryState]: Readonly<InventoryState[P]>;
 };
+
+export function isInventoryLocation(
+  name: string
+): name is keyof InventoryState {
+  return ['closet', 'displayCase', 'inventory', 'storage'].includes(name);
+}
