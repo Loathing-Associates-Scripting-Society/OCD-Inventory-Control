@@ -7,6 +7,16 @@ import {CleanupRule, isCleanupAction} from '../data/cleanup-rule';
 import {createMapLoader, encodeItem} from './util';
 
 /**
+ * A Map that maps `Item` objects to `CleanupRule` objects.
+ * Not to be confused with `CleanupRuleset`, which is a plain object whose keys
+ * are item IDs (string).
+ */
+export type CleanupRules = Map<Item, CleanupRule>;
+
+/** A read-only variant of `CleanupRules`. */
+export type ReadonlyCleanupRules = ReadonlyMap<Item, Readonly<CleanupRule>>;
+
+/**
  * Loads a cleanup ruleset from a text file into a Map.
  * @param filename Path to the data file
  * @return Map of each item to its cleanup rule. If the user's cleanup ruleset
@@ -70,7 +80,7 @@ export const loadCleanupRulesetFile = createMapLoader(
  */
 export function saveCleanupRulesetFile(
   filepath: string,
-  cleanupRulesMap: ReadonlyMap<Item, Readonly<CleanupRule>>
+  cleanupRulesMap: ReadonlyCleanupRules
 ): boolean {
   // Sort entries by item ID in ascending order when saving
   const buffer = Array.from(cleanupRulesMap.entries())

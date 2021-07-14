@@ -24,7 +24,6 @@
     "module": "ES2015",
     "moduleResolution": "node",
     "paths": {
-      "@philter/common/kol": ["../common/src/kol"],
       "zlib.ash": ["../../node_modules/kolmafia/contrib/zlib.ash"]
     },
     "rootDir": ".",

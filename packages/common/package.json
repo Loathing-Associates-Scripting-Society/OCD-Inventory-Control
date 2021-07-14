@@ -9,6 +9,9 @@
   },
   "typesVersions": {
     "*": {
+      "kol": [
+        "./build/src/kol/index.d.ts"
+      ],
       "*": [
         "./build/src/*"
       ]

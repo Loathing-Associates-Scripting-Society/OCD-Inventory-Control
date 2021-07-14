@@ -1,6 +1,7 @@
-import {availableAmount, batchClose, batchOpen, cliExecute, closetAmount, equippedAmount, getCampground, getProperty, isDisplayable, itemAmount, myName, setProperty, stashAmount, storageAmount, svnAtHead, svnExists, todayToString, toInt, userConfirm} from 'kolmafia';
+import {availableAmount, batchClose, batchOpen, canInteract, cliExecute, closetAmount, equippedAmount, getCampground, getProperty, isDisplayable, itemAmount, myName, setProperty, stashAmount, storageAmount, svnAtHead, svnExists, todayToString, toInt, userConfirm} from 'kolmafia';
 import {getvar, setvar} from 'zlib.ash';
 import {toItemMap} from '@philter/common/kol'
+import * as logger from './logger';
 
 // The following variables should be set from the relay script.
 setvar("BaleOCD_MallMulti", "");           // If mall_multi is not empty, then all MALL items will be sent to this multi.
@@ -25,47 +26,37 @@ setvar("BaleOCD_RunIfRoninOrHC", "ask");   // Controls whether to run OCD-Cleanu
 const __OCD_PROJECT_NAME__ = "Loathing-Associates-Scripting-Society-philter-trunk-release";
 if(svnExists(__OCD_PROJECT_NAME__) && getProperty("_svnUpdated") === "false" && getProperty("_ocdUpdated") !== "true") {
 	if(!svnAtHead(__OCD_PROJECT_NAME__)) {
-		print("Philter has become outdated. Automatically updating from SVN...", _ocd_color_error());
+		logger.warn("Philter has become outdated. Automatically updating from SVN...");
 		cliExecute("svn update " + __OCD_PROJECT_NAME__);
-		print("On the script's next invocation it will be up to date.", _ocd_color_success());
+		logger.success("On the script's next invocation it will be up to date.");
 	}
 	setProperty("_ocdUpdated", "true");
 }
 
-record OCDinfo {
-	string action;	// What to do
-	int q;			// How many of them to keep
-	string info;	// Extra information (whom to send the gift)
-	string message; // Message to send with a gift
-};
-
-void main() {
+export function main(args?: string): void {
 
 	if(can_interact_check()) {
 		int todaysFarming = ocd_control(true);
-		if(todaysFarming < 0)
-			vprint("OCD Control was unable to obssessively control your entire inventory.", _ocd_color_error(), -1);
+		if(todaysFarming < 0) {
+			logger.error("OCD Control was unable to obssessively control your entire inventory.");
+		}
 		else if(todaysFarming === 0)
-			vprint("Nothing to do. I foresee no additional meat in your future.", _ocd_color_warning(), 3);
+			logger.warn("Nothing to do. I foresee no additional meat in your future.");
 		else {
-			vprint(
-				"Anticipated monetary gain from inventory cleansing: "+rnum(todaysFarming)+" meat.",
-				_ocd_color_success(),
-				3
+			logger.success(
+				`Anticipated monetary gain from inventory cleansing: ${rnum(todaysFarming)} meat.`,
 			);
 		}
-	} else vprint("Whoa! Don't run this until you break the prism!", _ocd_color_error(), -3);
+	} else {
+		logger.error("Whoa! Don't run this until you break the prism!");
+	}
 }
 
 function can_interact_check(): boolean {
-  if (can_interact()) return true;
+  if (canInteract()) return true;
 
   const action = getvar("BaleOCD_RunIfRoninOrHC");
   if (action === "never") return false;
   if (action === "always") return true;
   return userConfirm("You are in Ronin/Hardcore. Do you want to run OCD Cleanup anyway?");
-}
-
-export function main(args: string): void {
-
 }

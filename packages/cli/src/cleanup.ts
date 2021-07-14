@@ -1,8 +1,10 @@
 import { CleanupAction, CleanupRule, CleanupRuleset, StockingRule } from "@philter/common";
-import { loadCleanupRulesetFile, toItemMap } from "@philter/common/kol";
+import { loadCleanupRulesetFile, ReadonlyCleanupRules, ReadonlyStockingRules, toItemMap } from "@philter/common/kol";
 import { abort, autosell, autosellPrice, availableAmount, batchClose, batchOpen, canEquip, canInteract, cliExecute, closetAmount, count, creatableAmount, create, equip, equippedAmount, getInventory, getProperty, getRelated, haveDisplay, haveSkill, historicalAge, historicalPrice, isInteger, isOnline, isTradeable, itemAmount, mallPrice, max, min, myClass, myName, myPath, myPrimestat, print, putCloset, putShop, retrieveItem, setProperty, shopAmount, shopPrice, storageAmount, toBoolean, toInt, toItem, toSlot, use, userConfirm, visitUrl } from "kolmafia";
 import {getvar, kmail, rnum, vprint} from 'zlib.ash';
 import { countIngredient, fullAmount, get_malus_order, is_OCDable, other_clover, sauce_mult, split_items_sorted } from "./util";
+import * as logger from './logger';
+import * as assert from 'kolmafia-util/assert';
 
 
 /**
@@ -69,19 +71,28 @@ function sale_price(it: Item, minPrice: number): number {
 	return Math.max(minPrice, price, 0);
 }
 
-// Amount to OCD. Consider equipment in terrarium (but not equipped) as OCDable.
-function ocd_amount(it: Item, action: CleanupAction, keepAmount: number, stock): number {
-	if(action === "KEEP") return 0;
-	const full = fullAmount(it);
+/**
+ * Computes the actual amount of `item` to clean up based on its cleanup and
+ * stocking rules.
+ * This considers equipment in terrarium (but not equipped) for cleanup.
+ * @param item Item to check
+ * @param cleanupRule Cleanup rule for the item
+ * @param stockingRule Stocking rule for the item, if any
+ * @return Amount of the item to cleanup
+ */
+function ocd_amount(item: Item, cleanupRule: Readonly<CleanupRule>, stockingRule: Readonly<StockingRule> | undefined): number {
+	if(cleanupRule.action === "KEEP") return 0;
+	const full = fullAmount(item);
 	// Unequip item from terrarium or equipment if necessary to OCD it.
-	if(full > keepAmount && availableAmount(it) > itemAmount(it))
-		retrieveItem(Math.min(full - keepAmount, availableAmount(it)), it);
+	const keepAmount = cleanupRule.keepAmount || 0;
+	if(full > keepAmount && availableAmount(item) > itemAmount(item)){
+		retrieveItem(Math.min(full - keepAmount, availableAmount(item)), item);}
 	// Don't OCD items that are part of stock. Stock can always be satisfied by closet.
 	const keep = getvar("BaleOCD_Stock") === "0" ? keepAmount:
-		Math.max(keepAmount, stock[it].q - (getProperty("autoSatisfyWithCloset") === "false"? 0: closetAmount(it)));
+		Math.max(keepAmount, (stockingRule?.amount || 0) - (getProperty("autoSatisfyWithCloset") === "false"? 0: closetAmount(item)));
 	// OCD is limited by itemAmount(it) since we don't want to purchase anything and closeted items
 	// may be off-limit, but if there's something in the closet, it counts against the amount you own.
-	return Math.min(full - keep, itemAmount(it));
+	return Math.min(full - keep, itemAmount(item));
 }
 
 /**
@@ -175,11 +186,6 @@ function use_it(quant: number, it: Item): boolean {
 export function ocd_control(shouldStopForMissingItems: boolean, extraData = '') {
 	let FinalSale = 0;
 
-	record {
-		string type;
-		int q;
-	} [item] stock;
-
 	// Save these so they can be screwed with safely
 	let autoSatisfyWithCloset = toBoolean(getProperty("autoSatisfyWithCloset"));
 	let autoSatisfyWithStorage = toBoolean(getProperty("autoSatisfyWithStorage"));
@@ -221,7 +227,7 @@ GIFT:  "send gift to ",
 	 *      `false` if the user chose to abort.
 	 */
 	function make_plan(
-		StopForMissingItems: boolean, cleanupRules: ReadonlyMap<Item, CleanupRule>, stockingRules:ReadonlyMap<Item, StockingRule>
+		StopForMissingItems: boolean, cleanupRules: ReadonlyCleanupRules, stockingRules:ReadonlyStockingRules
 	): CleanupPlan | null {
 		AskUser = AskUser && StopForMissingItems;
 		// Don't stop if "don't ask user" or it is a quest item, or it is being stocked.
@@ -258,7 +264,7 @@ GIFT:  "send gift to ",
 		for (const doodad of toItemMap(getInventory()).keys()) {
 			const rule = cleanupRules.get(doodad);
 			if(rule) {
-				excess = ocd_amount(doodad, rule.action, rule.keepAmount);
+				excess = ocd_amount(doodad, rule, stockingRules.get(doodad));
 				if(excess > 0)
 					switch(rule.action) {
 					case "BREAK":
@@ -270,10 +276,8 @@ GIFT:  "send gift to ",
 						);
 						plan.make_q.set(doodad, used_per_craft);
 						if (used_per_craft === 0) {
-							vprint(
-								`You cannot transform an ${doodad} into a ${rule.targetItem}. There's a problem with your data file or your crafting ability.`,
-								_ocd_color_error(),
-								-3
+							logger.error(
+								`You cannot transform an ${doodad} into a ${rule.targetItem}. There's a problem with your data file or your crafting ability.`
 							);
 							break;
 						}
@@ -349,28 +353,35 @@ GIFT:  "send gift to ",
 		return plan;
 	}
 
-	function print_cat(cat: ReadonlyMap<Item, number>, rule: CleanupRule, cleanupRules: ReadonlyMap<Item, CleanupRule>): void {
-		if(count(cat) < 1) return;
+	function print_cat(cat: ReadonlyMap<Item, number>, cleanupRules: ReadonlyCleanupRules): number {
+		if(cat.size === 1) return 0;
 
 		const catOrder = new Map(Array.from(cat).sort(([itemA], [itemB]) => itemA.name.localeCompare(itemB.name)));
 
 		let len = 0, total = 0, linevalue = 0;
 		let queue = '';
 
-		if (rule.action === 'KEEP' || rule.action === 'TODO') {throw new Error(`print_cat cannot process "${rule.action}" rule`);}
+
+		const firstItem = cat.keys().next().value;
+		assert.ok(firstItem, 'wtfwtfwtf???');
+		// This is a representative rule
+		const rule = cleanupRules.get(firstItem);
+		assert.ok(rule, 'wtfwtfwtf');
+
+		if (rule.action === 'KEEP' || rule.action === 'TODO') {throw new Error(`print_cat() cannot process "${rule.action}" rule`);}
 		let com = command[rule.action];
 		if(rule.action === "GIFT") com += `${rule.recipent}: `;
-		function print_line(): boolean {
-			vprint(com + queue, _ocd_color_info(), 3);
-			if (rule.action === "MALL"){
-				vprint(`Sale price for this line: ${rnum(linevalue)}`, _ocd_color_info(), 3);
+
+		function print_line() {
+			logger.info(com + queue);
+			if (rule!.action === "MALL"){
+				logger.info(`Sale price for this line: ${rnum(linevalue)}`);
 			}
-			vprint(" ", 3);
+			logger.info(" ");
 			len = 0;
 			total += linevalue;
 			linevalue = 0;
 			queue = ''
-			return true;
 		}
 
 		for (const [it, quant] of catOrder) {
@@ -400,11 +411,12 @@ GIFT:  "send gift to ",
 
 		if(rule.action === "MALL") {
 			if(!use_multi){
-				vprint(`Total mall sale = ${rnum(total)}`,_ocd_color_info(), 3);}
-			// else vprint("Current mall price = "+rnum(total), _ocd_color_info(), 3);
+				logger.info(`Total mall sale = ${rnum(total)}`);
+			}
 		} else if(rule.action === "AUTO"){
-			vprint("Total autosale = "+rnum(total), _ocd_color_info(), 3);}
-		FinalSale += total;
+			logger.info(`Total autosale = ${rnum(total)}`);
+		}
+		return total;
 	}
 
 	// This is only called if the player has both kinds of clovers, so no need to check if stock contains both
@@ -418,14 +430,14 @@ GIFT:  "send gift to ",
 	 * @param ocd_rules OCD ruleset to use
 	 * @return Whether all items were stocked successfully
 	 */
-	function stock(stockingRules: ReadonlyMap<Item, StockingRule>, cleanupRules: ReadonlyMap<Item, CleanupRule>) {
+	function stock(stockingRules: ReadonlyMap<Item, StockingRule>, cleanupRules: ReadonlyCleanupRules) {
 		let success = true;
 		let first = true;
 		function stockit(q: number, it: Item): boolean {
 			q = q - closetAmount(it) - storageAmount(it) - equippedAmount(it);
 			if(q < 1) return true;
 			if(first) {
-				vprint("Stocking up on required items!", _ocd_color_info(), 3);
+				logger.info("Stocking up on required items!");
 				first = false;
 			}
 			return retrieveItem(q, it);
@@ -442,7 +454,7 @@ GIFT:  "send gift to ",
 			}
 			if(fullAmount(it) < stockingRule.amount && !stockit(stockingRule.amount, it)) {
 				success = false;
-				print(`Failed to stock ${(stockingRule.amount > 1? `${stockingRule.amount} ${it.plural}`: `a ${it}`)}`, _ocd_color_error());
+				logger.error(`Failed to stock ${(stockingRule.amount > 1? `${stockingRule.amount} ${it.plural}`: `a ${it}`)}`);
 			}
 			// Closet everything (except for gear) that is stocked so it won't get accidentally used.
 			const keepAmount = cleanupRules.get(it)?.keepAmount || 0;
@@ -453,7 +465,7 @@ GIFT:  "send gift to ",
 		return success;
 	}
 
-	function getMessage(cat: ReadonlyMap<Item, number>, cleanupRules: ReadonlyMap<Item, CleanupRule>): string {
+	function getMessage(cat: ReadonlyMap<Item, number>, cleanupRules: ReadonlyCleanupRules): string {
 		for (const key of cat.keys()) {
 			const rule = cleanupRules.get(key);
 			if (rule && rule.action === 'GIFT') return rule.message;
@@ -486,12 +498,12 @@ GIFT:  "send gift to ",
 		// execution plan.
 		if(cat.size === 0) return false;
 		let i = 0;
-		if (act === "TODO" && cat.size > 0)
-			print("");
-		else if (act === "PULV")
-			abort("PULV action must be handled by act_pulverize()");
+		if (act === "TODO" && cat.size > 0){
+			print("");}
+		else if (act === "PULV"){
+			abort("PULV action must be handled by act_pulverize()");}
 		else
-			print_cat(cat, act, to, cleanupRules);
+			FinalSale += print_cat(cat, cleanupRules);
 		if(toBoolean(getvar("BaleOCD_Sim"))) return true;
 
 		switch(act) {
@@ -503,10 +515,9 @@ GIFT:  "send gift to ",
 				// Some users have reported OCD-Cleanup occasionally sending
 				// items to an account named "False". While the exact cause is
 				// unknown, this should serve as a stopgap measure.
-				if (multi_id === "" || multi_id.to_lower_case() === "false") {
-					print(
-						`Invalid mall multi account ID ("{multi_id}"). Please report the issue at https://kolmafia.us/`,
-						_ocd_color_error()
+				if (multi_id === "" || multi_id.toLowerCase() === "false") {
+					logger.error(
+						`Invalid mall multi account ID ("${multi_id}"). Please report the issue at https://kolmafia.us/`
 					);
 					const timeout = 30;
 					const warning_message =
@@ -625,7 +636,7 @@ GIFT:  "send gift to ",
 		if (!load_OCD(ocd_rules, extraData)) return false;
 		if((!file_to_map("OCDstock_"+getvar("BaleOCD_StockFile")+".txt", stock) || count(stock) === 0)
 		  && getvar("BaleOCD_Stock") === "1") {
-			print("You are missing item stocking information.", _ocd_color_error());
+			logger.error("You are missing item stocking information.");
 			return false;
 		}
 
@@ -673,16 +684,14 @@ GIFT:  "send gift to ",
 			act_cat(mpr.plan.gift[person], "GIFT", person, mpr.plan, ocd_rules);
 		}
 
-		if(getvar("BaleOCD_Stock") === "1" && !getvar("BaleOCD_Sim").toBoolean())
+		if(getvar("BaleOCD_Stock") === "1" && !toBoolean(getvar("BaleOCD_Sim")))
 			stock(ocd_rules);
 
 		act_cat(mpr.plan.todo, "TODO", "", mpr.plan, ocd_rules);
 
-		if(getvar("BaleOCD_Sim").toBoolean())
-			vprint(
+		if(toBoolean(getvar("BaleOCD_Sim")))
+			logger.success(
 				"This was only a test. Had this been an actual OCD incident your inventory would be clean right now.",
-				_ocd_color_success(),
-				3
 			);
 		return true;
 	}

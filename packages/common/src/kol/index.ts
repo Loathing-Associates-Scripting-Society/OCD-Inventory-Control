@@ -5,4 +5,5 @@
  */
 
 export * from './cleanup-ruleset';
+export * from './stocking-ruleset';
 export * from './util';
