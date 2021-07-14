@@ -25,6 +25,7 @@
   "dependencies": {
     "@philter/common": "*",
     "@types/minimist": "^1.2.1",
+    "kolmafia-util": "^0.2.0",
     "minimist": "^1.2.5",
     "string-argv": "^0.3.1"
   },

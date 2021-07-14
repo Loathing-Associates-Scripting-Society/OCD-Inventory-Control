@@ -13,6 +13,7 @@ import {
   visitUrl,
   xpath,
 } from 'kolmafia';
+import * as assert from 'kolmafia-util/assert';
 
 /**
  * Prints an error message to the gCLI.
@@ -21,43 +22,6 @@ import {
 export function error(message: string) {
   print(message, 'red');
 }
-
-/**
- * If `condition` is falsy, throws `AssertionError`, optionally using the given
- * error message.
- * @param condition Condition to check
- * @param error Error message
- * @throws {AssertionError} If `condition` is falsy
- */
-export function assert(condition: unknown, message?: string): asserts condition;
-
-/**
- * If `condition` is falsy, throws `error`.
- * @param condition Condition to check
- * @param error Error object to throw
- * @throws {E} If `condition` is falsy
- */
-export function assert<E extends Error>(
-  condition: unknown,
-  error: E
-): asserts condition;
-
-export function assert(
-  condition: unknown,
-  error: string | Error = 'Assertion failure'
-) {
-  if (!condition) {
-    throw error instanceof Error ? error : new AssertionError(error);
-  }
-}
-
-export class AssertionError extends Error {
-  constructor(message: string) {
-    super(message);
-    Object.setPrototypeOf(this, AssertionError.prototype);
-  }
-}
-AssertionError.prototype.name = 'AssertionError';
 
 /**
  * Snapshot of the player's inventory at a specific point in time.
@@ -140,13 +104,16 @@ function parseKmailPage(page: string): KolKmail[] {
   return cells.map(cell => {
     const recipentMatch =
       /<a href="showplayer\.php\?who=(\d+)">(.+?)<\/a>/.exec(cell);
-    assert(recipentMatch, `Failed to match recipent pattern in kmail: ${cell}`);
+    assert.ok(
+      recipentMatch,
+      `Failed to match recipent pattern in kmail: ${cell}`
+    );
     const recipentId = Number(recipentMatch[1]);
     const recipentName = recipentMatch[2];
 
     const localTimeMatch =
       /<!--((\d+)\/(\d+)\/(\d+) (\d+):(\d+):(\d+))-->/.exec(cell);
-    assert(localTimeMatch, `Failed to match time pattern in kmail: ${cell}`);
+    assert.ok(localTimeMatch, `Failed to match time pattern in kmail: ${cell}`);
     const [, localTime, mm, dd, yy, hourStr, minuteStr, secondStr] =
       localTimeMatch;
     const localTimestamp = new Date(
@@ -159,7 +126,7 @@ function parseKmailPage(page: string): KolKmail[] {
     ).getTime();
 
     const messageMatch = /<blockquote>(.*)<\/blockquote>/.exec(cell);
-    assert(messageMatch, `Failed to match message body in kmail: ${cell}`);
+    assert.ok(messageMatch, `Failed to match message body in kmail: ${cell}`);
     const message = messageMatch[1];
 
     return {

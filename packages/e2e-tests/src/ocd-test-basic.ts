@@ -16,6 +16,7 @@ import {
   printHtml,
   toInt,
 } from 'kolmafia';
+import * as assert from 'kolmafia-util/assert';
 import minimist from 'minimist';
 import {parseArgsStringToArgv} from 'string-argv';
 import {getvar} from 'zlib.ash';
@@ -36,7 +37,7 @@ import {
   UntinkerTest,
   UseTest,
 } from './lib/action-tests';
-import {assert, captureInventoryState, error, InventoryState} from './lib/util';
+import {captureInventoryState, error, InventoryState} from './lib/util';
 
 const TEST_CONFIG_FILE_NAME = 'e2e-test-config';
 
@@ -74,7 +75,7 @@ function setup(testCases: Iterable<CleanupActionTest>): void {
     }
   }
 
-  assert(
+  assert.ok(
     bufferToFile(configRows.join('\n'), `OCDdata_${TEST_CONFIG_FILE_NAME}.txt`),
     'Failed to save config file'
   );
