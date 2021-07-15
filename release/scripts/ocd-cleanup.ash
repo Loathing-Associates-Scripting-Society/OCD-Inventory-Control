@@ -115,6 +115,39 @@ int full_amount(item it) {
 		- (get_property("autoSatisfyWithStash") == "true"? stash_amount(it): 0);	// Don't include Clan Stash
 }
 
+// Sale price cache for the MALL action.
+// This cache ensures that the sale price displayed by print_cat() matches the
+// actual sale price used by act_cat().
+record __OcdPriceCache {
+	int [item] price;
+};
+
+/**
+ * Computes an appropriate selling price for an item at the mall, based on its
+ * current (or historical) mall price.
+ * If the cache already contains a price, returns that instead.
+ * @param cache Cache to use
+ * @param it Item to check
+ * @param min_price_str If this contains a valid integer, it is used as the
+ *      minimum price.
+ * @return Appropriate selling price for the item, or zero if the item is
+ *		not available in the mall.
+ *		The returned price is guaranteed to be at least 0.
+ */
+int sale_price(__OcdPriceCache cache, item it, string min_price_str) {
+	if (cache.price contains it) return cache.price[it];
+
+	int price;
+	if (historical_age(it) < 1 && historical_price(it) > 0) {
+		price = historical_price(it);
+	} else {
+		price = mall_price(it);
+	}
+	return cache.price[it] = max(
+		0, price, is_integer(min_price_str) ? to_int(min_price_str) : 0
+	);
+}
+
 // Wrapping the entire script in ocd_control() to reduce variable conflicts if the script is imported to another.
 // StopForMissingItems is a parameter in case someone wants to include this script.
 // StopForMissingItems = FALSE to prevent a pop-up confirmation.
@@ -149,13 +182,6 @@ int ocd_control(boolean StopForMissingItems, string extraData) {
 	boolean use_multi = getvar("BaleOCD_MallMulti") != "" && to_boolean(getvar("BaleOCD_UseMallMulti"));
 	if(use_multi)
 		command ["MALL"] = "send to mallmulti "+ getvar("BaleOCD_MallMulti") + ": ";
-
-	// Sale price cache the MALL action.
-	// This cache is populated by print_cat() with values returned by
-	// sale_price(). Later, it is accessed by act_cat(). This ensures that the
-	// sale price displayed to the user matches the actual sale price used.
-	// Note that this cache is never used when sending items to a mall multi.
-	int [item] price;
 
 	/**
 	 * Loads OCD rules from the player's OCD ruleset file into a map.
@@ -449,28 +475,13 @@ int ocd_control(boolean StopForMissingItems, string extraData) {
 		return new MakePlanResult(true, plan);
 	}
 
-	/**
-	 * Computes an appropriate selling price for an item at the mall, based on
-	 * its current (or historical) mall price.
-	 * @param it Item to check
-	 * @param min_price_str If this contains a valid integer, it is used as the
-	 *      minimum price.
-	 * @return Appropriate selling price for the item, or zero if the item is
-	 *		not available in the mall.
-	 *		The returned price is guaranteed to be at least 0.
-	 */
-	int sale_price(item it, string min_price_str) {
-		int price;
-		if(historical_age(it) < 1 && historical_price(it) > 0)
-			price = historical_price(it);
-		else price = mall_price(it);
-		if(price < 1) price = 0;
-		if(is_integer(min_price_str))
-			return max(to_int(min_price_str), price);
-		return price;
-	}
-
-	void print_cat(int [item] cat, string act, string to, OCDinfo [item] ocd_rules) {
+	void print_cat(
+		int [item] cat,
+		string act,
+		string to,
+		OCDinfo [item] ocd_rules,
+		__OcdPriceCache price_cache
+	) {
 		if(count(cat) < 1) return;
 
 		item [int] catOrder;
@@ -503,11 +514,11 @@ int ocd_control(boolean StopForMissingItems, string extraData) {
 			queue.append(quant + " "+ it);
 			if(act == "MALL") {
 				if(!use_multi) {
-					price[it] = sale_price(it, ocd_rules[it].info);
+					int price = price_cache.sale_price(it, ocd_rules[it].info);
 					if(getvar("BaleOCD_Pricing") == "auto")
-						queue.append(" @ "+ rnum(price[it]));
+						queue.append(" @ "+ rnum(price));
+					linevalue += quant * price;
 				}
-				linevalue += quant * price[it];
 			} else if(act == "MAKE") {
 				queue.append(" into "+ ocd_rules[it].info);
 			} else if(act == "AUTO") {
@@ -1017,6 +1028,7 @@ int ocd_control(boolean StopForMissingItems, string extraData) {
 		OcdPlan plan,
 		OCDinfo [item] ocd_rules
 	) {
+		__OcdPriceCache price_cache;
 
 		item [int] catOrder;
 		foreach it in cat
@@ -1032,7 +1044,7 @@ int ocd_control(boolean StopForMissingItems, string extraData) {
 		else if (act == "PULV")
 			abort("PULV action must be handled by act_pulverize()");
 		else
-			print_cat(cat, act, to, ocd_rules);
+			print_cat(cat, act, to, ocd_rules, price_cache);
 		if(getvar("BaleOCD_Sim").to_boolean()) return true;
 		switch(act) {
 		case "MALL":
@@ -1089,11 +1101,14 @@ int ocd_control(boolean StopForMissingItems, string extraData) {
 					visit_url("inventory.php?action=breakbricko&pwd&ajax=1&whichitem="+to_int(it));
 				break;
 			case "MALL":
-				if(getvar("BaleOCD_Pricing") == "auto") {
-					if(price[it]> 0)  // If price is -1, then there was an error.
-						put_shop(price[it], 0, quant, it);  // price[it] was found during print_cat()
-				} else
-					put_shop((shop_amount(it)>0? shop_price(it): 0), 0, quant, it);   // Set to max price of 999,999,999 meat
+				put_shop(
+					getvar("BaleOCD_Pricing") == "auto"
+						? price_cache.sale_price(it, ocd_rules[it].info)
+						: 0, // Use current price (or max if none is present)
+					0,
+					quant,
+					it
+				);
 				break;
 			case "AUTO":
 				autosell(quant, it);
