@@ -303,7 +303,9 @@ export function main(commands: string): void {
 
   print('Executing E2E test for Philter...');
   // For now, we test the ASH version of the script
-  withTemporaryConfig(() => cliExecute(testCmd));
+  withTemporaryConfig(() =>
+    assert.ok(cliExecute(testCmd), `Failed to execute '${testCmd}'`)
+  );
 
   print('Verifying test case(s)...');
   verify(testCases.values(), oldState);
