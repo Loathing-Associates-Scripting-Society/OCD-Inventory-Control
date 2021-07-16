@@ -3,8 +3,8 @@
  */
 
 import {bufferToFile, toBoolean, toInt, toItem} from 'kolmafia';
-import {CleanupRule, isCleanupAction} from '../data/cleanup-rule';
-import {createMapLoader, encodeItem} from './util';
+import {CleanupRule, isCleanupAction} from '../data/cleanup-rule.js';
+import {createMapLoader, encodeItem} from './util.js';
 
 /**
  * A Map that maps `Item` objects to `CleanupRule` objects.

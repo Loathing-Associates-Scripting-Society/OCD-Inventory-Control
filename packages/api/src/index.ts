@@ -3,8 +3,12 @@ import {
   RELAY_HTML_PATH,
   unwrapDeserializedRequest,
 } from '@philter/common';
+import {
+  checkProjectUpdates,
+  logger,
+  setDefaultConfig,
+} from '@philter/common/kol';
 import {formFields, gametimeToInt, myName, write} from 'kolmafia';
-import {debug, error} from './logging';
 import {routes} from './routes';
 import {createRouter} from './typed-router';
 import {formatDateClf} from './util';
@@ -68,8 +72,11 @@ export function main() {
   const __filename: string = require.main.id;
   const safeScriptPath = __filename.replace(/(.*?)(?=\/relay\/)/i, '');
 
-  debug(`Started ${safeScriptPath}...`);
+  logger.debug(`Started ${safeScriptPath}...`);
   const startTime = gametimeToInt();
+
+  setDefaultConfig();
+  checkProjectUpdates();
 
   let requestParameters;
 
@@ -95,7 +102,9 @@ export function main() {
     // Interestingly, KoLmafia will still return a response if the script aborts
     // or throws after calling send(). Unfortunately, the stack trace is all but
     // lost at this point, so there's little point in re-throwing the exception.
-    error(`[${safeScriptPath}] ${e instanceof Error ? e : '[ERROR] ' + e}`);
+    logger.error(
+      `[${safeScriptPath}] ${e instanceof Error ? e : '[ERROR] ' + e}`
+    );
   }
 
   const endTime = gametimeToInt();
@@ -109,7 +118,9 @@ export function main() {
   } else {
     extraComment = 'home page requested';
   }
-  debug(`${name} [${clfDate}] "${safeScriptPath} HTTP" (${extraComment})`);
+  logger.debug(
+    `${name} [${clfDate}] "${safeScriptPath} HTTP" (${extraComment})`
+  );
 
-  debug(`Took ${endTime - startTime}ms to generate response`);
+  logger.debug(`Took ${endTime - startTime}ms to generate response`);
 }

@@ -4,7 +4,6 @@ Object.defineProperty(exports, '__esModule', { value: true });
 
 var kolmafia = require('kolmafia');
 var zlib_ash = require('zlib.ash');
-var ocdCleanup_ash = require('ocd-cleanup.ash');
 var philter_util_ash = require('philter.util.ash');
 
 /*! *****************************************************************************
@@ -200,31 +199,40 @@ var isCleanupAction = function (value) {
 };
 
 /**
- * @file Utility methods for logging to the gCLI.
- */
-/**
- * Prints a debug message to the gCLI, obeying the current verbosity setting
- * (`zlib verbosity`).
- * @param message Message to print
- */
-function debug(message) {
-    zlib_ash.vprint(message, '#808080', 6);
-}
-/**
- * Prints an error message to the gCLI, obeying the current verbosity setting
- * (`zlib verbosity`).
- * @param message Message to print
+ * @file Provides methods for logging colored text.
  */
 function error(message) {
     zlib_ash.vprint(message, kolmafia.isDarkMode() ? '#ff0033' : '#cc0033', 1);
 }
+function warn(message) {
+    zlib_ash.vprint(message, kolmafia.isDarkMode() ? '#cc9900' : '#cc6600', 2);
+}
+function success(message) {
+    zlib_ash.vprint(message, kolmafia.isDarkMode() ? '#00cc00' : '#008000', 2);
+}
+function debug(message) {
+    zlib_ash.vprint(message, '#808080', 6);
+}
+
+function checkProjectUpdates() {
+    // Check version! This will check both scripts and data files.
+    // This code is at base level so that the relay script's importation will automatically cause it to be run.
+    var PROJECT_NAME = 'Loathing-Associates-Scripting-Society-philter-trunk-release';
+    if (kolmafia.svnExists(PROJECT_NAME) &&
+        kolmafia.getProperty('_svnUpdated') === 'false' &&
+        kolmafia.getProperty('_ocdUpdated') !== 'true') {
+        if (!kolmafia.svnAtHead(PROJECT_NAME)) {
+            warn('Philter has become outdated. Automatically updating from SVN...');
+            kolmafia.cliExecute("svn update " + PROJECT_NAME);
+            success("On the script's next invocation it will be up to date.");
+        }
+        kolmafia.setProperty('_ocdUpdated', 'true');
+    }
+}
 
 /**
- * @file General-purpose utilities for KoLmafia scripts.
- */
-/**
- * Factory function for functions that parse a text file into an ES2015 Map
- * using KoLmafia's file I/O API.
+ * Factory function for functions that parse a text file into a Map using
+ * KoLmafia's file I/O API.
  * Any comments and empty lines in the text file are ignored.
  * @param parse Callback used to parse each row.
  *    The callback may accept the following arguments:
@@ -236,28 +244,18 @@ function error(message) {
  *    The callback must return a tuple of `[key, value]`.
  *    If the row is malformed, the callback may throw an exception.
  * @return Function that accepts a file name as a parameter, and returns a Map.
- *    If the file cannot be found or is empty, this function will return `null`
- *    instead.
+ *    If the file cannot be found or is empty, this function will return an
+ *    empty map.
  */
 function createMapLoader(parse) {
     return function (filename) {
-        var e_1, _a;
         var entries = new Map();
         var rawData = kolmafia.fileToArray(filename);
-        try {
-            for (var _b = __values(Object.keys(rawData)), _c = _b.next(); !_c.done; _c = _b.next()) {
-                var indexStr = _c.value;
-                var row = rawData[indexStr].split('\t');
-                var _d = __read(parse(row, Number(indexStr), filename), 2), key = _d[0], value = _d[1];
-                entries.set(key, value);
-            }
-        }
-        catch (e_1_1) { e_1 = { error: e_1_1 }; }
-        finally {
-            try {
-                if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
-            }
-            finally { if (e_1) throw e_1.error; }
+        for (var _i = 0, _a = Object.keys(rawData); _i < _a.length; _i++) {
+            var indexStr = _a[_i];
+            var row = rawData[indexStr].split('\t');
+            var _b = parse(row, Number(indexStr), filename), key = _b[0], value = _b[1];
+            entries.set(key, value);
         }
         return entries.size ? entries : null;
     };
@@ -268,6 +266,312 @@ function createMapLoader(parse) {
 function encodeItem(item) {
     return "[" + kolmafia.toInt(item) + "]" + item.name;
 }
+/**
+ * Converts an object to a Map, converting each key to an `Item` object.
+ * @param items Object whose keys are item names
+ * @return Mapping of Item to amount
+ */
+function toItemMap(items) {
+    return new Map(Object.keys(items).map(function (itemStr) { return [Item.get(itemStr), items[itemStr]]; }));
+}
+
+/**
+ * @file Tools for manipulating cleanup ruleset files.
+ */
+/**
+ * Loads a cleanup ruleset from a text file into a Map.
+ * @param filename Path to the data file
+ * @return Map of each item to its cleanup rule. If the user's cleanup ruleset
+ *    file is empty or missing, returns `null`.
+ * @throws {TypeError} If the file contains invalid data
+ */
+var loadCleanupRulesetFile = createMapLoader(function (_a, _, filename) {
+    var itemName = _a[0], action = _a[1], keepAmountStr = _a[2], info = _a[3], message = _a[4];
+    if (!isCleanupAction(action)) {
+        throw new TypeError(action + " is not a valid cleanup action (file: " + filename + ", entry: " + itemName + ")");
+    }
+    var rule;
+    if (action === 'GIFT') {
+        rule = { action: action, recipent: info, message: message };
+    }
+    else if (action === 'MAKE') {
+        rule = {
+            action: action,
+            targetItem: info,
+            shouldUseCreatableOnly: kolmafia.toBoolean(message),
+        };
+    }
+    else if (action === 'MALL') {
+        var minPrice = Number(info);
+        if (!Number.isInteger(minPrice)) {
+            throw new TypeError("Invalid minimum price " + minPrice + " for MALL rule (file: " + filename + ", entry: " + itemName + ")");
+        }
+        rule = { action: action, minPrice: minPrice };
+    }
+    else if (action === 'TODO') {
+        // Curiously, Philter stores the message in the 'info' field
+        rule = { action: action, message: info };
+    }
+    else {
+        rule = { action: action };
+    }
+    var keepAmount = Number(keepAmountStr);
+    if (!Number.isInteger(keepAmount)) {
+        throw new TypeError("Invalid keep amount " + keepAmountStr + " (file: " + filename + ", entry: " + itemName + ")");
+    }
+    if (keepAmount > 0) {
+        rule.keepAmount = keepAmount;
+    }
+    return [kolmafia.toItem(itemName), rule];
+});
+/**
+ * Saves a Map containing a cleanup ruleset to a text file.
+ * @param filepath Path to the data file
+ * @param cleanupRulesMap Map of each item to its item info
+ */
+function saveCleanupRulesetFile(filepath, cleanupRulesMap) {
+    // Sort entries by item ID in ascending order when saving
+    var buffer = Array.from(cleanupRulesMap.entries())
+        .sort(function (_a, _b) {
+        var itemA = _a[0];
+        var itemB = _b[0];
+        return kolmafia.toInt(itemA) - kolmafia.toInt(itemB);
+    })
+        .map(function (_a) {
+        var item = _a[0], rule = _a[1];
+        var info = '', message = '';
+        if (rule.action === 'GIFT') {
+            info = rule.recipent;
+            message = rule.message;
+        }
+        else if (rule.action === 'MAKE') {
+            info = rule.targetItem;
+            message = String(rule.shouldUseCreatableOnly);
+        }
+        else if (rule.action === 'MALL') {
+            info = rule.minPrice ? String(rule.minPrice) : '';
+        }
+        else if (rule.action === 'TODO') {
+            info = rule.message;
+        }
+        return [
+            encodeItem(item),
+            rule.action,
+            rule.keepAmount || 0,
+            info,
+            message,
+        ].join('\t');
+    })
+        .join('\n');
+    return kolmafia.bufferToFile(buffer, filepath);
+}
+
+/**
+ * Checks if an item can be cleaned up by Philter.
+ *
+ * Generally, this rejects most items that cannot be put in the display case
+ * (e.g. quest items). However, several items that Philter knows how to handle
+ * are exempt from this rule.
+ * @param item Item to check
+ * @return Whether the item can be cleaned up by Philter
+ */
+function isCleanable(it) {
+    // For some reason Item.get("none") is displayable
+    if (it === Item.get('none'))
+        return false;
+    if (Item.get([
+        "Boris's key",
+        "Jarlsberg's key",
+        "Richard's star key",
+        "Sneaky Pete's key",
+        'digital key',
+        "the Slug Lord's map",
+        "Dr. Hobo's map",
+        "Dolphin King's map",
+        'Degrassi Knoll shopping list',
+        '31337 scroll',
+        'dead mimic',
+        "fisherman's sack",
+        'fish-oil smoke bomb',
+        'vial of squid ink',
+        'potion of fishy speed',
+        'blessed large box',
+    ]).includes(it)) {
+        return true;
+    }
+    // Let these hide in your inventory until it is time for them to strike!
+    // TODO: Revisit how this is handled.
+    // Since a player can have multiple DNOTC boxes from different years, and we
+    // don't know the associated year of a DNOTC box, our best bet is to try
+    // opening them all.
+    if (it === Item.get('DNOTC Box')) {
+        var today = kolmafia.todayToString();
+        if (today.slice(4, 6) === '12' && Number(today.slice(6, 8)) < 25) {
+            return false;
+        }
+    }
+    return kolmafia.isDisplayable(it);
+}
+
+/**
+ * @file Tools for loading and manipulating Philter configuration.
+ */
+/**
+ * Namespace object that maps each config key to their ZLib variable name.
+ */
+var CONFIG_NAMES = Object.freeze({
+    emptyClosetMode: 'BaleOCD_EmptyCloset',
+    simulateOnly: 'BaleOCD_Sim',
+    mallPricingMode: 'BaleOCD_Pricing',
+    mallMultiName: 'BaleOCD_MallMulti',
+    mallMultiKmailMessage: 'BaleOCD_MultiMessage',
+    canUseMallMulti: 'BaleOCD_UseMallMulti',
+    dataFileName: 'BaleOCD_DataFile',
+    stockFileName: 'BaleOCD_StockFile',
+});
+/**
+ * Sets up default values for config variables (powered by ZLib).
+ */
+function setDefaultConfig() {
+    zlib_ash.setvar(CONFIG_NAMES.mallMultiName, '');
+    zlib_ash.setvar(CONFIG_NAMES.canUseMallMulti, true);
+    zlib_ash.setvar(CONFIG_NAMES.mallMultiKmailMessage, 'Mall multi dump');
+    zlib_ash.setvar(CONFIG_NAMES.dataFileName, kolmafia.myName());
+    zlib_ash.setvar(CONFIG_NAMES.stockFileName, kolmafia.myName());
+    zlib_ash.setvar(CONFIG_NAMES.mallPricingMode, 'auto');
+    zlib_ash.setvar(CONFIG_NAMES.simulateOnly, false);
+    zlib_ash.setvar(CONFIG_NAMES.emptyClosetMode, 0);
+    // ZLib variables that are not exposed yet
+    // TODO: Load and save these variables, too
+    // Should items be acquired for stock (0: no, 1: yes)
+    zlib_ash.setvar('BaleOCD_Stock', 0);
+    // Should Hangk's Storange be emptied? (0: no, 1: yes)
+    zlib_ash.setvar('BaleOCD_EmptyHangks', 0);
+    // Whether to mallsell any uncategorized items (DANGEROUS)
+    zlib_ash.setvar('BaleOCD_MallDangerously', false);
+    // Controls whether to run OCD-Cleanup if the player is in Ronin/Hardcore.
+    // -"ask": Ask the user
+    // -"never": Never run if in Ronin/Hardcore
+    // -"always": Always run, even if in Ronin/Hardcore
+    zlib_ash.setvar('BaleOCD_RunIfRoninOrHC', 'ask');
+}
+function loadCleanupConfig() {
+    var emptyClosetMode = parseInt(zlib_ash.getvar(CONFIG_NAMES.emptyClosetMode));
+    var mallPricingMode = zlib_ash.getvar(CONFIG_NAMES.mallPricingMode);
+    return {
+        emptyClosetMode: emptyClosetMode === 0 || emptyClosetMode === -1 ? emptyClosetMode : 0,
+        simulateOnly: kolmafia.toBoolean(CONFIG_NAMES.simulateOnly),
+        mallPricingMode: mallPricingMode === 'auto' || mallPricingMode === 'max'
+            ? mallPricingMode
+            : 'auto',
+        mallMultiName: zlib_ash.getvar(CONFIG_NAMES.mallMultiName),
+        mallMultiKmailMessage: zlib_ash.getvar(CONFIG_NAMES.mallMultiKmailMessage),
+        canUseMallMulti: kolmafia.toBoolean(zlib_ash.getvar(CONFIG_NAMES.canUseMallMulti)),
+        dataFileName: zlib_ash.getvar(CONFIG_NAMES.dataFileName),
+        stockFileName: zlib_ash.getvar(CONFIG_NAMES.stockFileName),
+    };
+}
+function saveCleanupConfig(config) {
+    var serializedConfig = {};
+    for (var _i = 0, _a = Object.keys(config); _i < _a.length; _i++) {
+        var key = _a[_i];
+        var varName = CONFIG_NAMES[key];
+        if (varName === undefined) {
+            throw new Error("Cannot find ZLib config name for config key '" + key + "'");
+        }
+        serializedConfig[varName] = String(config[key]);
+    }
+    philter_util_ash._updateZlibVars(serializedConfig);
+}
+
+/**
+ * @file Tools for manipulating stocking ruleset files.
+ */
+/**
+ * Loads a stocking ruleset from a text file into a map.
+ * @param fileName Path to the data file
+ * @return Map of each item to its stocking rule. If the user's stocking ruleset
+ *    file is empty or missing, returns `null`.
+ * @throws {TypeError} If the file contains invalid data
+ */
+var loadStockingRulesetFile = createMapLoader(function (_a, _, fileName) {
+    var itemName = _a[0], type = _a[1], amountStr = _a[2], _b = _a[3], category = _b === void 0 ? '' : _b;
+    var amount = Number(amountStr);
+    if (!Number.isInteger(amount)) {
+        throw new TypeError("Invalid stock-up amount (" + amount + ") for item '" + itemName + "' in file '" + fileName + "'");
+    }
+    return [kolmafia.toItem(itemName), { type: type, amount: amount, category: category }];
+});
+/**
+ * Saves a map containing a stocking ruleset to a text file.
+ * @param filepath Path to the data file
+ * @param stockingRulesMap Map of each item to its stocking rule
+ */
+function saveStockingRulesetFile(filepath, stockingRulesMap) {
+    // Sort entries by item ID in ascending order when saving
+    var buffer = Array.from(stockingRulesMap.entries())
+        .sort(function (_a, _b) {
+        var itemA = _a[0];
+        var itemB = _b[0];
+        return kolmafia.toInt(itemA) - kolmafia.toInt(itemB);
+    })
+        .map(function (_a) {
+        var item = _a[0], rule = _a[1];
+        return [encodeItem(item), rule.type, rule.amount, rule.category].join('\t');
+    })
+        .join('\n');
+    if (!kolmafia.bufferToFile(buffer, filepath)) {
+        throw new Error("Failed to save to " + filepath);
+    }
+}
+
+/**
+ * @file Tools for managing `PhilterConfig` objects.
+ */
+/**
+ * Get the full file name of a cleanup ruleset file, including the prefix and
+ * file extension.
+ */
+function getFullDataFileName(fileNameComponent) {
+    return "OCDdata_" + fileNameComponent + ".txt";
+}
+/**
+ * Get the full file name of a cleanup stocking ruleset file, including the
+ * prefix and file extension.
+ */
+function getFullStockFileName(fileNameComponent) {
+    return "OCDstock_" + fileNameComponent + ".txt";
+}
+
+/**
+ * @file Tools for managing `CleanupRuleset` objects.
+ */
+/**
+ * Loads the cleanup ruleset from the ruleset file of the current player.
+ * @return Map of each item to its cleanup rule. If the user's cleanup ruleset
+ *    file is empty or missing, returns `null`.
+ */
+function loadCleanupRulesetForCurrentPlayer() {
+    var cleanupRulesMap = loadCleanupRulesetFile(getFullDataFileName(zlib_ash.getvar(CONFIG_NAMES.dataFileName)));
+    if (!cleanupRulesMap || cleanupRulesMap.size === 0) {
+        // Legacy file name
+        // TODO: We inherited this from OCD Inventory Manager. Since nobody seems to
+        // be using this anymore, we can probably remove it.
+        cleanupRulesMap = loadCleanupRulesetFile("OCD_" + kolmafia.myName() + ".txt");
+    }
+    return cleanupRulesMap;
+}
+/**
+ * Writes the stocking ruleset to the ruleset file of the current player.
+ * @param cleanupRulesMap Stocking ruleset to save
+ */
+function saveCleanupRulesetForCurrentPlayer(cleanupRulesMap) {
+    return saveCleanupRulesetFile(getFullDataFileName(zlib_ash.getvar(CONFIG_NAMES.dataFileName)), cleanupRulesMap);
+}
+
+/**
+ * @file General-purpose utilities for KoLmafia scripts.
+ */
 var _MONTH_STR = [
     'Jan',
     'Feb',
@@ -315,7 +619,7 @@ function idMappingToItemMap(itemMapping) {
  * keyed by item IDs.
  */
 function itemMapToIdMapping(itemMap) {
-    var e_2, _a;
+    var e_1, _a;
     var itemMapping = {};
     try {
         for (var itemMap_1 = __values(itemMap), itemMap_1_1 = itemMap_1.next(); !itemMap_1_1.done; itemMap_1_1 = itemMap_1.next()) {
@@ -323,23 +627,14 @@ function itemMapToIdMapping(itemMap) {
             itemMapping[kolmafia.toInt(item)] = value;
         }
     }
-    catch (e_2_1) { e_2 = { error: e_2_1 }; }
+    catch (e_1_1) { e_1 = { error: e_1_1 }; }
     finally {
         try {
             if (itemMap_1_1 && !itemMap_1_1.done && (_a = itemMap_1.return)) _a.call(itemMap_1);
         }
-        finally { if (e_2) throw e_2.error; }
+        finally { if (e_1) throw e_1.error; }
     }
     return itemMapping;
-}
-/**
- * Converts a mapping of item strings to their amounts (returned by
- * `getInventory()`, `getCloset()`, etc.) to a Map.
- * @param items Mapping of item strings to their amounts
- * @return Mapping of Item to amount
- */
-function toItemMap(items) {
-    return new Map(Object.keys(items).map(function (itemStr) { return [Item.get(itemStr), items[itemStr]]; }));
 }
 
 /**
@@ -412,75 +707,6 @@ function getInventoryStateWithMaps() {
         },
         inventoryStateMap,
     ];
-}
-
-/**
- * @file Tools for managing `PhilterConfig` objects.
- */
-/**
- * Namespace object that maps each config key to their ZLib variable name.
- */
-var CONFIG_NAMES = Object.freeze({
-    emptyClosetMode: 'BaleOCD_EmptyCloset',
-    simulateOnly: 'BaleOCD_Sim',
-    mallPricingMode: 'BaleOCD_Pricing',
-    mallMultiName: 'BaleOCD_MallMulti',
-    mallMultiKmailMessage: 'BaleOCD_MultiMessage',
-    canUseMallMulti: 'BaleOCD_UseMallMulti',
-    dataFileName: 'BaleOCD_DataFile',
-    stockFileName: 'BaleOCD_StockFile',
-});
-/**
- * Get the full file name of a cleanup ruleset file, including the prefix and
- * file extension.
- */
-function getFullDataFileName(fileNameComponent) {
-    return "OCDdata_" + fileNameComponent + ".txt";
-}
-/**
- * Get the full file name of a cleanup stocking ruleset file, including the
- * prefix and file extension.
- */
-function getFullStockFileName(fileNameComponent) {
-    return "OCDstock_" + fileNameComponent + ".txt";
-}
-function loadCleanupConfig() {
-    var emptyClosetMode = parseInt(zlib_ash.getvar(CONFIG_NAMES.emptyClosetMode));
-    var mallPricingMode = zlib_ash.getvar(CONFIG_NAMES.mallPricingMode);
-    return {
-        emptyClosetMode: emptyClosetMode === 0 || emptyClosetMode === -1 ? emptyClosetMode : 0,
-        simulateOnly: kolmafia.toBoolean(CONFIG_NAMES.simulateOnly),
-        mallPricingMode: mallPricingMode === 'auto' || mallPricingMode === 'max'
-            ? mallPricingMode
-            : 'auto',
-        mallMultiName: zlib_ash.getvar(CONFIG_NAMES.mallMultiName),
-        mallMultiKmailMessage: zlib_ash.getvar(CONFIG_NAMES.mallMultiKmailMessage),
-        canUseMallMulti: kolmafia.toBoolean(zlib_ash.getvar(CONFIG_NAMES.canUseMallMulti)),
-        dataFileName: zlib_ash.getvar(CONFIG_NAMES.dataFileName),
-        stockFileName: zlib_ash.getvar(CONFIG_NAMES.stockFileName),
-    };
-}
-function saveCleanupConfig(config) {
-    var e_1, _a;
-    var serializedConfig = {};
-    try {
-        for (var _b = __values(Object.keys(config)), _c = _b.next(); !_c.done; _c = _b.next()) {
-            var key = _c.value;
-            var varName = CONFIG_NAMES[key];
-            if (varName === undefined) {
-                throw new Error("Cannot find ZLib config name for config key '" + key + "'");
-            }
-            serializedConfig[varName] = String(config[key]);
-        }
-    }
-    catch (e_1_1) { e_1 = { error: e_1_1 }; }
-    finally {
-        try {
-            if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
-        }
-        finally { if (e_1) throw e_1.error; }
-    }
-    philter_util_ash._updateZlibVars(serializedConfig);
 }
 
 /**
@@ -610,158 +836,8 @@ function toItemInfo(item) {
 }
 
 /**
- * @file Tools for managing `CleanupRuleset` objects.
- */
-/**
- * Loads a cleanup ruleset from a text file into a map.
- * @param filename Path to the data file
- * @return Map of each item to its cleanup rule. If the user's cleanup ruleset
- *    file is empty or missing, returns `null`.
- * @throws {TypeError} If the file contains invalid data
- */
-var loadCleanupRulesetFile = createMapLoader(function (_a, _, filename) {
-    var _b = __read(_a, 5), itemName = _b[0], action = _b[1], keepAmountStr = _b[2], info = _b[3], message = _b[4];
-    if (!isCleanupAction(action)) {
-        throw new TypeError(action + " is not a valid cleanup action (file: " + filename + ", entry: " + itemName + ")");
-    }
-    var rule;
-    if (action === 'GIFT') {
-        rule = { action: action, recipent: info, message: message };
-    }
-    else if (action === 'MAKE') {
-        rule = {
-            action: action,
-            targetItem: info,
-            shouldUseCreatableOnly: kolmafia.toBoolean(message),
-        };
-    }
-    else if (action === 'MALL') {
-        var minPrice = Number(info);
-        if (!Number.isInteger(minPrice)) {
-            throw new TypeError("Invalid minimum price " + minPrice + " for MALL rule (file: " + filename + ", entry: " + itemName + ")");
-        }
-        rule = { action: action, minPrice: minPrice };
-    }
-    else if (action === 'TODO') {
-        // Curiously, Philter stores the message in the 'info' field
-        rule = { action: action, message: info };
-    }
-    else {
-        rule = { action: action };
-    }
-    var keepAmount = Number(keepAmountStr);
-    if (!Number.isInteger(keepAmount)) {
-        throw new TypeError("Invalid keep amount " + keepAmountStr + " (file: " + filename + ", entry: " + itemName + ")");
-    }
-    if (keepAmount > 0) {
-        rule.keepAmount = keepAmount;
-    }
-    return [kolmafia.toItem(itemName), rule];
-});
-/**
- * Saves a map containing a cleanup ruleset to a text file.
- * @param filepath Path to the data file
- * @param cleanupRulesMap Map of each item to its item info
- */
-function saveCleanupRulesetFile(filepath, cleanupRulesMap) {
-    // Sort entries by item ID in ascending order when saving
-    var buffer = Array.from(cleanupRulesMap.entries())
-        .sort(function (_a, _b) {
-        var _c = __read(_a, 1), itemA = _c[0];
-        var _d = __read(_b, 1), itemB = _d[0];
-        return kolmafia.toInt(itemA) - kolmafia.toInt(itemB);
-    })
-        .map(function (_a) {
-        var _b = __read(_a, 2), item = _b[0], rule = _b[1];
-        var info = '', message = '';
-        if (rule.action === 'GIFT') {
-            info = rule.recipent;
-            message = rule.message;
-        }
-        else if (rule.action === 'MAKE') {
-            info = rule.targetItem;
-            message = String(rule.shouldUseCreatableOnly);
-        }
-        else if (rule.action === 'MALL') {
-            info = rule.minPrice ? String(rule.minPrice) : '';
-        }
-        else if (rule.action === 'TODO') {
-            info = rule.message;
-        }
-        return [
-            encodeItem(item),
-            rule.action,
-            rule.keepAmount || 0,
-            info,
-            message,
-        ].join('\t');
-    })
-        .join('\n');
-    return kolmafia.bufferToFile(buffer, filepath);
-}
-/**
- * Loads the cleanup ruleset from the ruleset file of the current player.
- * @return Map of each item to its cleanup rule. If the user's cleanup ruleset
- *    file is empty or missing, returns `null`.
- */
-function loadCleanupRulesetForCurrentPlayer() {
-    var cleanupRulesMap = loadCleanupRulesetFile(getFullDataFileName(zlib_ash.getvar(CONFIG_NAMES.dataFileName)));
-    if (!cleanupRulesMap || cleanupRulesMap.size === 0) {
-        // Legacy file name
-        // TODO: We inherited this from OCD Inventory Manager. Since nobody seems to
-        // be using this anymore, we can probably remove it.
-        cleanupRulesMap = loadCleanupRulesetFile("OCD_" + kolmafia.myName() + ".txt");
-    }
-    return cleanupRulesMap;
-}
-/**
- * Writes the stocking ruleset to the ruleset file of the current player.
- * @param cleanupRulesMap Stocking ruleset to save
- */
-function saveCleanupRulesetForCurrentPlayer(cleanupRulesMap) {
-    return saveCleanupRulesetFile(getFullDataFileName(zlib_ash.getvar(CONFIG_NAMES.dataFileName)), cleanupRulesMap);
-}
-
-/**
  * @file Tools for managing `StockingRuleset` objects.
  */
-/**
- * Loads a stocking ruleset from a text file into a map.
- * @param fileName Path to the data file
- * @return Map of each item to its stocking rule. If the user's stocking ruleset
- *    file is empty or missing, returns `null`.
- * @throws {TypeError} If the file contains invalid data
- */
-var loadStockingRulesetFile = createMapLoader(function (_a, _, fileName) {
-    var _b = __read(_a, 4), itemName = _b[0], type = _b[1], amountStr = _b[2], _c = _b[3], category = _c === void 0 ? '' : _c;
-    var amount = Number(amountStr);
-    if (!Number.isInteger(amount)) {
-        throw new TypeError("Invalid stock-up amount (" + amount + ") for item '" + itemName + "' in file '" + fileName + "'");
-    }
-    return [kolmafia.toItem(itemName), { type: type, amount: amount, category: category }];
-});
-/**
- * Saves a map containing a stocking ruleset to a text file.
- * @param filepath Path to the data file
- * @param stockingRulesMap Map of each item to its stocking rule
- */
-function saveStockingRulesetFile(filepath, stockingRulesMap) {
-    // Sort entries by item ID in ascending order when saving
-    var buffer = Array.from(stockingRulesMap.entries())
-        .sort(function (_a, _b) {
-        var _c = __read(_a, 1), itemA = _c[0];
-        var _d = __read(_b, 1), itemB = _d[0];
-        return kolmafia.toInt(itemA) - kolmafia.toInt(itemB);
-    })
-        .map(function (_a) {
-        var _b = __read(_a, 2), item = _b[0], rule = _b[1];
-        return [encodeItem(item), rule.type, rule.amount, rule.category].join('\t');
-    })
-        .join('\n');
-    if (!kolmafia.bufferToFile(buffer, filepath)) {
-        throw new Error("Failed to save to " + filepath);
-    }
-}
 /**
  * Loads the stocking ruleset from the stocking ruleset file of the current
  * player.
@@ -1408,7 +1484,7 @@ var routes = [
                     try {
                         for (var _f = (e_4 = void 0, __values(itemMap.keys())), _g = _f.next(); !_g.done; _g = _f.next()) {
                             var item = _g.value;
-                            if (!cleanupRulesMap.has(item) && ocdCleanup_ash.isOCDable(item)) {
+                            if (!cleanupRulesMap.has(item) && isCleanable(item)) {
                                 uncategorizedItems.add(item);
                             }
                         }
@@ -1539,7 +1615,7 @@ var routes = [
                     try {
                         for (var _j = (e_8 = void 0, __values(itemMap.keys())), _k = _j.next(); !_k.done; _k = _j.next()) {
                             var item = _k.value;
-                            if (!cleanupRulesMap.has(item) && ocdCleanup_ash.isOCDable(item)) {
+                            if (!cleanupRulesMap.has(item) && isCleanable(item)) {
                                 uncategorizedItems.add(item);
                             }
                         }
@@ -1622,6 +1698,8 @@ function main() {
     var safeScriptPath = __filename.replace(/(.*?)(?=\/relay\/)/i, '');
     debug("Started " + safeScriptPath + "...");
     var startTime = kolmafia.gametimeToInt();
+    setDefaultConfig();
+    checkProjectUpdates();
     var requestParameters;
     try {
         var router = createRouter(routes);

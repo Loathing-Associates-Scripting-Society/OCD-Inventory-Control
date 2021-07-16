@@ -4,12 +4,13 @@
 
 import {CleanupRule} from '@philter/common';
 import {
+  CONFIG_NAMES,
   loadCleanupRulesetFile,
   saveCleanupRulesetFile,
 } from '@philter/common/kol';
 import {myName} from 'kolmafia';
 import {getvar} from 'zlib.ash';
-import {CONFIG_NAMES, getFullDataFileName} from './philter-config';
+import {getFullDataFileName} from './philter-config';
 
 /**
  * Loads the cleanup ruleset from the ruleset file of the current player.

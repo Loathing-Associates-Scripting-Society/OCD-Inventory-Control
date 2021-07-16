@@ -4,6 +4,10 @@
  * isomorphic code only (i.e. works on the browser AND in KoLmafia).
  */
 
-export * from './cleanup-ruleset';
-export * from './stocking-ruleset';
-export * from './util';
+export * from './check-update.js';
+export * from './cleanup-ruleset.js';
+export * from './cleanup.js';
+export * from './config.js';
+export * as logger from './logger.js';
+export * from './stocking-ruleset.js';
+export * from './util.js';

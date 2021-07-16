@@ -369,6 +369,18 @@
     is-module "^1.0.0"
     resolve "^1.19.0"
 
+"@rollup/plugin-node-resolve@^13.0.2":
+  version "13.0.2"
+  resolved "https://registry.yarnpkg.com/@rollup/plugin-node-resolve/-/plugin-node-resolve-13.0.2.tgz#bfe58e9bfc7284ee0fabc6da7fabcb268f04e0a4"
+  integrity sha512-hv+eAMcA2hQ7qvPVcXbtIyc0dtue4jMyA2sCW4IMkrmh+SeDDEHg1MXTv65VPpKdtjvWzN3+4mHAEl4rT+zgzQ==
+  dependencies:
+    "@rollup/pluginutils" "^3.1.0"
+    "@types/resolve" "1.17.1"
+    builtin-modules "^3.1.0"
+    deepmerge "^4.2.2"
+    is-module "^1.0.0"
+    resolve "^1.19.0"
+
 "@rollup/plugin-typescript@^8.2.1":
   version "8.2.1"
   resolved "https://registry.yarnpkg.com/@rollup/plugin-typescript/-/plugin-typescript-8.2.1.tgz#f1a32d4030cc83432ce36a80a922280f0f0b5d44"
@@ -2157,6 +2169,11 @@ kolmafia-util@^0.2.0:
   version "0.2.0"
   resolved "https://registry.yarnpkg.com/kolmafia-util/-/kolmafia-util-0.2.0.tgz#f53a65264ef5a1784b4ed64ecffc5dc5352eda81"
   integrity sha512-iSuCe1OuG+gSWDfhrFmKJzU6xgACAcEXJVkYtQpXnNufqrTUHhK57T0DhTMws1B6oZ7KVf98cIQCCopBNEm+SA==
+
+kolmafia-util@^0.2.2:
+  version "0.2.2"
+  resolved "https://registry.yarnpkg.com/kolmafia-util/-/kolmafia-util-0.2.2.tgz#5b0c3683c3e516f11ad536f89e413452893b74ed"
+  integrity sha512-w+cnRYNBBJEv8uew5OxT2WY9yRe7ldsUfdxQUX9VH2I+PaNmAgDSlpmgZX0pyq8Gjz9loxNkpNHZW4MCOZ9Vyw==
 
 "kolmafia@npm:kolmafia-types@^0.1.1", "kolmafia@npm:kolmafia-types@^0.1.2":
   version "0.1.2"

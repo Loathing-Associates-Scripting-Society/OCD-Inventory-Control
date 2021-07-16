@@ -2,6 +2,10 @@
  * Represents Philter's configuration.
  */
 export interface PhilterConfig {
+  // TODO: emptyClosetMode was misinterpreted! It actually means
+  // 0: never empty closet
+  // 1: before emptying Hangk's
+  // -1: A value used by the classic relay script to denote "unselected".
   /**
    * Whether to empty the closet before cleanup.
    * - `0` means "Never empty closet".

@@ -7,14 +7,10 @@ import {
   getCampground,
   getIngredients,
   getProperty,
-  isDisplayable,
   itemAmount,
-  myClass,
   stashAmount,
   storageAmount,
   toBoolean,
-  todayToString,
-  toInt,
 } from 'kolmafia';
 
 function countIngredientRecurse(
@@ -95,183 +91,51 @@ export function fullAmount(it: Item): number {
   );
 }
 
-export function is_OCDable(it: Item): boolean {
-  switch (it) {
-    case Item.get('none'): // For some reason Item.get(`none`) is displayable
-      return false;
-    case Item.get("Boris's key"):
-    case Item.get("Jarlsberg's key"):
-    case Item.get("Richard's star key"):
-    case Item.get("Sneaky Pete's key"):
-    case Item.get('digital key'):
-    case Item.get("the Slug Lord's map"):
-    case Item.get("Dr. Hobo's map"):
-    case Item.get("Dolphin King's map"):
-    case Item.get('Degrassi Knoll shopping list'):
-    case Item.get('31337 scroll'):
-    case Item.get('dead mimic'):
-    case Item.get("fisherman's sack"):
-    case Item.get('fish-oil smoke bomb'):
-    case Item.get('vial of squid ink'):
-    case Item.get('potion of fishy speed'):
-    case Item.get('blessed large box'):
-      return true;
-    case Item.get('DNOTC Box'): // Let these hide in your inventory until it is time for them to strike!
-      if (
-        todayToString().slice(4, 6) === '12' &&
-        Number(todayToString().slice(6, 8)) < 25
-      )
-        return false;
-      break;
-  }
-  if (isDisplayable(it)) return true;
-  return false;
-}
-
-export function is_wadable(it: Item): boolean {
-  // twinkly powder to sleaze nuggets
-  if (1438 <= toInt(it) && toInt(it) <= 1449) return true;
-  switch (it) {
-    case Item.get('sewer nuggets'):
-    case Item.get('floaty sand'):
-    case Item.get('floaty pebbles'):
-    case Item.get('floaty gravel'):
-      return true;
-  }
-  return false;
-}
-
 /**
- * Returns the "Malus order" of items.
- * Items with the same order are processed together, and items with a smaller
- * order are processed first.
- * @param it Item to check
- * @return Integer beteween 1 and 3 for malusable items.
- *      0 if the item cannot be malused.
+ * Splits an iterable into equal-sized chunks of `length`.
+ * @param iter Iterable
+ * @param size Max length of each chunk (must be at least 1)
+ * @yields Arrays of equal length. The last array may have less than `size`
+ *    items, but is never empty.
+ *    If `iter` is empty, no array is yielded.
  */
-export function get_malus_order(it: Item): number {
-  switch (it) {
-    // Process nuggets after powders
-    case Item.get('twinkly nuggets'):
-    case Item.get('hot nuggets'):
-    case Item.get('cold nuggets'):
-    case Item.get('spooky nuggets'):
-    case Item.get('stench nuggets'):
-    case Item.get('sleaze nuggets'):
-      return 2;
-    // Process floaty sand -> floaty pebbles -> floaty gravel
-    case Item.get('floaty pebbles'):
-      return 2;
-    case Item.get('floaty gravel'):
-      return 3;
-    // Non-malusable items (includes equipment that can be Pulverized)
-    default:
-      // 1 for other malusable items
-      // 0 for non-malusable items (including pulverizable equipment)
-      return is_wadable(it) ? 1 : 0;
+export function* grouper<T>(iter: Iterable<T>, size: number) {
+  if (size < 1) {
+    throw new Error(`Chunk size must be at least 1 (got ${size})`);
   }
-}
 
-/**
- * Returns the alternate form of a ten-leaf clover or disassembled clover.
- * @param it ten-leaf clover or disassembled clover
- * @return
- */
-export function other_clover(it: Item): Item {
-  return it === Item.get('ten-leaf clover')
-    ? Item.get('disassembled clover')
-    : Item.get('ten-leaf clover');
-}
-
-const SAUCE_MULT_POTIONS: ReadonlySet<Item> = new Set(
-  Item.get([
-    'philter of phorce',
-    'Frogade',
-    'potion of potency',
-    'oil of stability',
-    'ointment of the occult',
-    'salamander slurry',
-    'cordial of concentration',
-    'oil of expertise',
-    'serum of sarcasm',
-    'eyedrops of newt',
-    'eyedrops of the ermine',
-    'oil of slipperiness',
-    'tomato juice of powerful power',
-    'banana smoothie',
-    'perfume of prejudice',
-    'libation of liveliness',
-    'milk of magnesium',
-    'papotion of papower',
-    'oil of oiliness',
-    'cranberry cordial',
-    'concoction of clumsiness',
-    'phial of hotness',
-    'phial of coldness',
-    'phial of stench',
-    'phial of spookiness',
-    'phial of sleaziness',
-    "Ferrigno's Elixir of Power",
-    'potent potion of potency',
-    'plum lozenge',
-    "Hawking's Elixir of Brilliance",
-    'concentrated cordial of concentration',
-    'pear lozenge',
-    "Connery's Elixir of Audacity",
-    'eyedrops of the ocelot',
-    'peach lozenge',
-    'cologne of contempt',
-    'potion of temporary gr8ness',
-    'blackberry polite',
-  ])
-);
-
-/**
- * Returns the number of `itm` that will be crafted by your character per craft.
- * This returns 3 for Sauceror potions (only if you are a Sauceror).
- * Otherwise, this returns 1.
- * @param itm Item to check
- * @return Amount that will be created by your character
- */
-export function sauce_mult(itm: Item): number {
-  if (myClass() === Class.get('Sauceror') && SAUCE_MULT_POTIONS.has(itm)) {
-    return 3;
+  let chunk: T[] = [];
+  for (const value of iter) {
+    chunk.push(value);
+    if (chunk.length >= size) {
+      yield chunk;
+      chunk = [];
+    }
   }
-  return 1;
+  if (chunk.length > 0) yield chunk;
 }
 
 /**
  * Splits a collection of items into equal-sized chunks, sorted
  * alphabetically by item name.
- * @param items Collection of items. Only the keys (item) are used, and
- *      values (quantities) are ignored.
- * @param chunk_size Number of items per chunk (must be positive)
- * @yield 0-indexed list of lists of items.
- *      If the input item collection is empty, returns an empty list.
+ * @param items Collection of items. Only the keys (item) are used, and values
+ *      are ignored.
+ * @param size Number of items per chunk (must be at least 1)
+ * @yields Maps of items. If the input item collection is empty, yields nothing.
  */
-export function* split_items_sorted(
-  items: ReadonlyMap<Item, number>,
-  chunk_size: number
-): IterableIterator<Map<Item, number>> {
-  if (chunk_size <= 0) {
-    throw new Error(`chunk_size must be greater than 0 (got ${chunk_size})`);
-  }
-
-  const sorted = new Map(
+export function* splitItemsSorted<T>(
+  items: Iterable<[Item, T]>,
+  size: number
+): IterableIterator<Map<Item, T>> {
+  const sortedChunks = grouper(
     Array.from(items).sort(([itemA], [itemB]) =>
       itemA.name.localeCompare(itemB.name)
-    )
+    ),
+    size
   );
-
-  let itemChunk = new Map<Item, number>();
-  for (const [it, qty] of sorted) {
-    itemChunk.set(it, qty);
-    if (itemChunk.size >= chunk_size) {
-      yield itemChunk;
-      itemChunk = new Map<Item, number>();
-    }
+  for (const chunk of sortedChunks) {
+    yield new Map(chunk);
   }
-  if (itemChunk.size > 0) yield itemChunk;
 }
 
 // This is the amount equipped on unequipped familiars in the terrarium

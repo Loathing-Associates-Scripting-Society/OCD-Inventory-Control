@@ -8,7 +8,7 @@ import createPreset from 'buble-config-rhino';
 
 /** @type {import("rollup").RollupOptions} */
 const config = {
-  external: ['kolmafia', 'zlib.ash'],
+  external: ['kolmafia', 'philter.util.ash', 'zlib.ash'],
   input: 'src/ocd-test-basic.ts',
   output: {
     dir: 'build',
@@ -25,6 +25,9 @@ const config = {
     }),
     buble(createPreset()),
   ],
+  treeshake: {
+    moduleSideEffects: id => id !== 'philter.util.ash',
+  },
 };
 
 export default config;

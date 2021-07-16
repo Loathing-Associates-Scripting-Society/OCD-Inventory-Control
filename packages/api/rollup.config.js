@@ -36,15 +36,14 @@
 /* eslint-disable node/no-unsupported-features/es-syntax */
 // Import @philter/common using a relative path. This is a hack, btw.
 // File extension is required to make this work in Node.js v12 AND v14.
-// eslint-disable-next-line node/no-missing-import
-import {RELAY_SCRIPT_FILE} from '../common/build/src/index.js';
 import {nodeResolve} from '@rollup/plugin-node-resolve';
 import typescript from '@rollup/plugin-typescript';
 import copy from 'rollup-plugin-copy';
+import {RELAY_SCRIPT_FILE} from '../common/build/src/index.js';
 
 /** @type {import('rollup').RollupOptions} */
 const config = {
-  external: ['kolmafia', 'ocd-cleanup.ash', 'philter.util.ash', 'zlib.ash'],
+  external: ['kolmafia', 'philter.util.ash', 'zlib.ash'],
   input: 'src/index.ts',
   output: {
     // To take advantage of TypeScript's incremental build mode, we must allow
@@ -72,6 +71,9 @@ const config = {
       ],
     }),
   ],
+  treeshake: {
+    moduleSideEffects: id => id !== 'philter.util.ash',
+  },
 };
 
 export default config;

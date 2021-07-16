@@ -14,10 +14,12 @@
   },
   "dependencies": {
     "@philter/common": "*",
-    "kolmafia": "npm:kolmafia-types@^0.1.2"
+    "kolmafia": "npm:kolmafia-types@^0.1.2",
+    "kolmafia-util": "^0.2.2"
   },
   "devDependencies": {
     "@rollup/plugin-buble": "^0.21.3",
+    "@rollup/plugin-node-resolve": "^13.0.2",
     "@rollup/plugin-typescript": "^8.2.1",
     "buble-config-rhino": "^0.1.0",
     "gts": "^3.1.0",

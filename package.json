@@ -4,7 +4,9 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "yarn run build:manager && yarn workspace @philter/e2e-tests build",
+    "build": "yarn workspace @philter/common build && yarn workspace @philter/e2e-tests build && yarn workspace @philter/cli build && yarn workspace @philter/api build && yarn workspace @philter/manager build",
+    "build:e2e": "yarn workspace @philter/common build && yarn workspace @philter/e2e-tests build",
+    "build:cli": "yarn workspace @philter/common build && yarn workspace @philter/cli build",
     "build:manager": "yarn workspace @philter/common build && yarn workspace @philter/api build && yarn workspace @philter/manager build",
     "lint": "eslint .",
     "postinstall": "patch-package"

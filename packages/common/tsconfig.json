@@ -22,6 +22,9 @@
     // Necessary to produce consistent output on different platforms
     "newLine": "LF",
     "outDir": "build",
+    "paths": {
+      "zlib.ash": ["../../node_modules/kolmafia/contrib/zlib.ash.d.ts"]
+    },
     "rootDir": ".",
     // Transpile ES2015 syntax unsupported by Rhino (e.g. template strings)
     "target": "ES5",
